@@ -21,7 +21,7 @@ except Exception as e:
 
 setup(
     name='CangJie',
-    version='0.0.1',
+    version='0.0.2',
     packages=find_packages(),
     python_requires='>=3.6',
     long_description='Refer to full documentation https://github.com/bigdata-ustc/XKT/blob/master/README.md'
@@ -34,7 +34,7 @@ setup(
     install_requires=mxnet_requires + [
         'tqdm',
         'fire',
-        'longling>=1.3.7',
+        'longling==1.3.8',
         'gensim',
         'Pillow',
         'gluonnlp',

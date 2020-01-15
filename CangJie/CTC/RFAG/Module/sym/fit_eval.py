@@ -50,19 +50,32 @@ def eval_f(_net, test_data, ctx=mx.cpu()):
         )
         return evaluation_result
 
+    # for batch_data in tqdm(test_data, "evaluating"):
+    #     ctx_data = split_and_load(
+    #         ctx, *batch_data,
+    #         even_split=False
+    #     )
+    #     for (word, word_radical, char, char_radical, word_mask,
+    #          char_mask, label) in ctx_data:
+    #         output = _net(
+    #             word, word_radical, char, char_radical, word_mask, char_mask
+    #         )
+    #         pred = mx.nd.argmax(output, axis=1)
+    #         ground_truth.extend(label.asnumpy().tolist())
+    #         prediction.extend(pred.asnumpy().tolist())
+
     for batch_data in tqdm(test_data, "evaluating"):
-        ctx_data = split_and_load(
-            ctx, *batch_data,
-            even_split=False
+        for i in range(len(batch_data)):
+            if batch_data[i].shape[-1] > 0:
+                batch_data[i] = batch_data[i].as_in_context(ctx)
+
+        word, word_radical, char, char_radical, word_mask, char_mask, label = batch_data
+        output = _net(
+            word, word_radical, char, char_radical, word_mask, char_mask
         )
-        for (word, word_radical, char, char_radical, word_mask,
-             char_mask, label) in ctx_data:
-            output = _net(
-                word, word_radical, char, char_radical, word_mask, char_mask
-            )
-            pred = mx.nd.argmax(output, axis=1)
-            ground_truth.extend(label.asnumpy().tolist())
-            prediction.extend(pred.asnumpy().tolist())
+        pred = mx.nd.argmax(output, axis=1)
+        ground_truth.extend(label.asnumpy().tolist())
+        prediction.extend(pred.asnumpy().tolist())
 
     return evaluation_function(ground_truth, prediction)
 
@@ -98,16 +111,26 @@ def fit_f(net, batch_size, batch_data,
     -------
 
     """
-    ctx_data = split_and_load(
-        ctx, *batch_data,
-        even_split=False
-    )
+
+    # ctx_data = split_and_load(
+    #     ctx, *batch_data,
+    #     even_split=False
+    # )
+    #
+    # with autograd.record():
+    #     for _data in ctx_data:
+    #         bp_loss = _fit_f(
+    #             net, _data, bp_loss_f, loss_function, loss_monitor
+    #         )
+    #         assert bp_loss is not None
+    #         bp_loss.backward()
+    # trainer.step(batch_size)
+
+    for i in range(len(batch_data)):
+        if batch_data[i].shape[-1] > 0:
+            batch_data[i] = batch_data[i].as_in_context(ctx)
 
     with autograd.record():
-        for _data in ctx_data:
-            bp_loss = _fit_f(
-                net, _data, bp_loss_f, loss_function, loss_monitor
-            )
-            assert bp_loss is not None
-            bp_loss.backward()
+        bp_loss = _fit_f(net, batch_data, bp_loss_f, loss_function, loss_monitor)
+        bp_loss.backward()
     trainer.step(batch_size)

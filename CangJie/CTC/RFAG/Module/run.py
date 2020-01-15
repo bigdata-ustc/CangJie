@@ -17,7 +17,8 @@ except (ImportError, SystemError):  # pragma: no cover
     from utils import parse_vec_files
 
 
-def numerical_check(_net, _cfg: Configuration, train_data, test_data, dump_result=False):  # pragma: no cover
+def numerical_check(_net, _cfg: Configuration, train_data, test_data, dump_result=False,
+                    reporthook=None, final_reporthook=None):  # pragma: no cover
     ctx = _cfg.ctx
     batch_size = _cfg.batch_size
 
@@ -65,16 +66,19 @@ def numerical_check(_net, _cfg: Configuration, train_data, test_data, dump_resul
             )
 
         if epoch % 1 == 0:
-            if epoch % 1 == 0:
-                print(
-                    evaluation_formatter(
-                        epoch=epoch,
-                        loss_name_value=dict(loss_monitor.items()),
-                        eval_name_value=eval_f(_net, test_data, ctx=ctx),
-                        extra_info=None,
-                        dump=True,
-                    )[0]
-                )
+            msg, data = evaluation_formatter(
+                epoch=epoch,
+                loss_name_value=dict(loss_monitor.items()),
+                eval_name_value=eval_f(_net, test_data, ctx=ctx),
+                extra_info=None,
+                dump=True,
+            )
+            print(msg)
+            if reporthook is not None:
+                reporthook(data)
+
+    if final_reporthook is not None:
+        final_reporthook()
 
 
 def pseudo_numerical_check(_net, _cfg):  # pragma: no cover
@@ -82,8 +86,14 @@ def pseudo_numerical_check(_net, _cfg):  # pragma: no cover
     numerical_check(_net, _cfg, datas, datas, dump_result=False)
 
 
-def train(train_fn, test_fn, vec_files, **cfg_kwargs):  # pragma: no cover
+def train(train_fn, test_fn, vec_files, reporthook=None, final_reporthook=None, **cfg_kwargs):  # pragma: no cover
     from longling import print_time
+    from longling.ML.toolkit.hyper_search import prepare_hyper_search
+
+    cfg_kwargs, reporthook, final_reporthook, tag = prepare_hyper_search(
+        cfg_kwargs, Configuration, reporthook, final_reporthook, final_key="prf:avg:f1"
+    )
+
     _cfg = Configuration(**cfg_kwargs)
     _cfg.logger.info(_cfg)
     vec_files = parse_vec_files(vec_files)
@@ -100,7 +110,8 @@ def train(train_fn, test_fn, vec_files, **cfg_kwargs):  # pragma: no cover
     _net.initialize(ctx=_cfg.ctx)
     _net.embedding.set_weight(get_embedding_array(embeddings))
 
-    numerical_check(_net, _cfg, train_data, test_data, dump_result=True)
+    numerical_check(_net, _cfg, train_data, test_data, dump_result=not tag, reporthook=reporthook,
+                    final_reporthook=final_reporthook)
 
 
 def sym_run(stage: (int, str) = "viz"):  # pragma: no cover
@@ -140,7 +151,7 @@ def sym_run(stage: (int, str) = "viz"):  # pragma: no cover
             "$data_dir/train.json",
             "$data_dir/test.json",
             "w:$vec_dir/word.vec.dat,c:$vec_dir/char.vec.dat",
-            ctx=mx.cpu(),
+            ctx=mx.gpu(),
             hyper_params={
                 "model_type": "wclstm",
                 "class_num": 32,
@@ -148,7 +159,8 @@ def sym_run(stage: (int, str) = "viz"):  # pragma: no cover
             },
             root="../../../..",
             dataset="ctc32",
-            data_dir="$root_data_dir"
+            data_dir="$root_data_dir",
+            end_epoch=1,
         )
 
     elif stage == 3:
